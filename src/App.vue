@@ -1,6 +1,6 @@
 <template>
     <div id="app">
-        <router-view name='main'/>
+        <router-view name="main"/>
 <!--        <Login></Login>-->
     </div>
 </template>
@@ -16,18 +16,4 @@
     }
 </script>
 
-<style>
-    .el-header, .el-footer {
-        background-color: #B3C0D1;
-        color: #333;
-        text-align: center;
-    }
 
-    .el-main {
-        background-color: #E9EEF3;
-        color: #333;
-        text-align: center;
-        height: 550px;
-    }
-
-</style>

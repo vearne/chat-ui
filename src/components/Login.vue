@@ -21,7 +21,10 @@
         },
         methods: {
             loginPro() {
-                this.$router.push({path: '/dialogue'})
+                this.$router.push({path: '/dialogue'});
+                // eslint-disable-next-line no-console
+                console.log('nickName:', this.nickName);
+                this.$store.commit('SET_NICKNAME', this.nickName)
             }
         }
     }

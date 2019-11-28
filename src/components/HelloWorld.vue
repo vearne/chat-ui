@@ -1,58 +1,56 @@
 <template>
-  <div class="hello">
-    <h1>{{ msg }}</h1>
-    <p>
-      For a guide and recipes on how to configure / customize this project,<br>
-      check out the
-      <a href="https://cli.vuejs.org" target="_blank" rel="noopener">vue-cli documentation</a>.
-    </p>
-    <h3>Installed CLI Plugins</h3>
-    <ul>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-babel" target="_blank" rel="noopener">babel</a></li>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-eslint" target="_blank" rel="noopener">eslint</a></li>
-    </ul>
-    <h3>Essential Links</h3>
-    <ul>
-      <li><a href="https://vuejs.org" target="_blank" rel="noopener">Core Docs</a></li>
-      <li><a href="https://forum.vuejs.org" target="_blank" rel="noopener">Forum</a></li>
-      <li><a href="https://chat.vuejs.org" target="_blank" rel="noopener">Community Chat</a></li>
-      <li><a href="https://twitter.com/vuejs" target="_blank" rel="noopener">Twitter</a></li>
-      <li><a href="https://news.vuejs.org" target="_blank" rel="noopener">News</a></li>
-    </ul>
-    <h3>Ecosystem</h3>
-    <ul>
-      <li><a href="https://router.vuejs.org" target="_blank" rel="noopener">vue-router</a></li>
-      <li><a href="https://vuex.vuejs.org" target="_blank" rel="noopener">vuex</a></li>
-      <li><a href="https://github.com/vuejs/vue-devtools#vue-devtools" target="_blank" rel="noopener">vue-devtools</a></li>
-      <li><a href="https://vue-loader.vuejs.org" target="_blank" rel="noopener">vue-loader</a></li>
-      <li><a href="https://github.com/vuejs/awesome-vue" target="_blank" rel="noopener">awesome-vue</a></li>
-    </ul>
-  </div>
+    <div class="hello">
+        <h1>{{ this.$store.state.accountInfo.nickName }}</h1>
+        <h1>{{ this.$store.state.testCount }}</h1>
+        <h1>{{ this.$store.getters.multiTestCount(3)}}</h1>
+        <button @click="incr()">增加</button>
+        <button @click="lazyIncr()">延迟增加</button>
+    </div>
 </template>
 
 <script>
-export default {
-  name: 'HelloWorld',
-  props: {
-    msg: String
-  }
-}
+    // import { mapMutations } from 'vuex'
+    export default {
+        name: 'HelloWorld',
+        data() {
+            return {
+                // currUser: this.$store.state.accountInfo.nickName,
+                // count: this.$store.state.testCount,
+                // newCount: this.$store.getters.multiTestCount(3)
+            };
+        },
+        methods:{
+            incr(){
+                // eslint-disable-next-line no-console
+                console.log("incr");
+                this.$store.commit("INCR");
+            },
+            lazyIncr(){
+                // eslint-disable-next-line no-console
+                console.log("lazyIncr");
+                this.$store.dispatch("increment");
+            }
+        }
+    }
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
-h3 {
-  margin: 40px 0 0;
-}
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-li {
-  display: inline-block;
-  margin: 0 10px;
-}
-a {
-  color: #42b983;
-}
+    h3 {
+        margin: 40px 0 0;
+    }
+
+    ul {
+        list-style-type: none;
+        padding: 0;
+    }
+
+    li {
+        display: inline-block;
+        margin: 0 10px;
+    }
+
+    a {
+        color: #42b983;
+    }
 </style>
