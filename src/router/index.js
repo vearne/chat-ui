@@ -12,7 +12,7 @@ const routers = [
         path: '/',
         name: 'RootPath',
         components: {
-            main:HChat
+            main:HelloWorld
         }
     },
     {
