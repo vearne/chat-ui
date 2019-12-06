@@ -1,10 +1,10 @@
 import Vue from 'vue'
 import Router from 'vue-router'
 import Login from '@/components/Login'
-import HelloWorld from '@/components/HelloWorld'
-import HChat from '@/components/HChat'
+import Ichat from '@/components/Ichat'
+// import Helloworld from '@/components/HelloWorld'
 
-Vue.use(Router)
+Vue.use(Router);
 
 
 const routers = [
@@ -12,29 +12,29 @@ const routers = [
         path: '/',
         name: 'RootPath',
         components: {
-            main:HelloWorld
+            main: Login
         }
     },
     {
         path: '/login',
         name: 'login',
         components: {
-            main:Login
+            main: Login
         }
     },
-    {
-        path: '/dialogue',
-        name: 'dialogue',
-        components: {
-            main:HelloWorld
-        }
-    },
+    // {
+    //     path: '/hello',
+    //     name: 'hello',
+    //     components: {
+    //         main: Helloworld
+    //     }
+    // },
     {
         path: '/chat',
         name: 'chat',
         components: {
-            main:HChat
+            main: Ichat
         }
     },
-]
+];
 export default routers
