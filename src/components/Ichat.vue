@@ -11,7 +11,7 @@
             </el-tab-pane>
         </el-tabs>
         <div class="chat-container">
-            <Chat v-if="visible"
+            <Chat  v-if="visible"
                   :participants="participants"
                   :myself="myself"
                   :messages="messages"
@@ -102,6 +102,12 @@
             this.websock.close() //离开路由之后断开websocket连接
         },
         methods: {
+            reRender() {
+                this.visible = false
+                this.$nextTick(() => {
+                    this.visible = true
+                })
+            },
             initWebSocket() {
                 const wsuri = "ws://127.0.0.1:18224/ws";
                 this.websock = new WebSocket(wsuri);
@@ -130,9 +136,11 @@
                 this.participants = this.allParticipants[this.activeSession];
                 this.messages = this.allMessages[this.activeSession];
                 // this.chatTitle = "chat with " + this.participants[0].nickName;
+                this.reRender();
             },
             // activeFlag 是否切换新会话变成活跃会话
             startNewSession(sessionId, partnerId, partnerName, activeFlag) {
+                this.systemMsg = "";
                 let session = this.sessionMap[sessionId];
                 if (session == null) { // 创建新的session
                     this.editableTabs.push({
@@ -190,16 +198,18 @@
                         } else {
                             // eslint-disable-next-line no-console
                             console.log(obj.code, "retry to match in 3 seconds");
-                            this.systemMsg = "There is no uers now.System will retry to match in 3 seconds.";
+                            this.systemMsg = "There is no uers now. System will retry to match in 3 seconds.";
                             // 尝试继续匹配
                             setTimeout(() => {
-                                if (this.activeSession != -1) {
+                                if (this.activeSession == -1) {
                                     let actions = {
                                         "cmd": "MATCH",
                                         "accountId": this.myself.id
                                     };
                                     let data = JSON.stringify(actions);
                                     this.websock.send(data);
+                                    // eslint-disable-next-line no-console
+                                    console.log("retry to match");
                                 }
                             }, 3000)
                         }
@@ -208,18 +218,21 @@
                         // 收到了其它人创建的session
                         if (obj.signalType == "NewSession") {
                             this.startNewSession(obj.sessionId, obj.data.accountId,
-                                obj.data.nickName, false);
+                                obj.data.nickName, true);
                         }
+                        // this.reRender();
                         break;
 
                     case "DIALOGUE":
                         // eslint-disable-next-line no-console
                         console.log("DIALOGUE", obj.code);
+                        break;
+                    case "PUSH_DIALOGUE":
                         this.allMessages[obj.sessionId].push(
                             {
                                 content: obj.content,
                                 myself: false,
-                                participantId: obj.sessionId,
+                                participantId: obj.senderId,
                                 timestamp: moment(),
                                 uploaded: false,
                                 viewed: true
