@@ -1,7 +1,7 @@
 <template>
     <div class="hello">
-        <div> current user: {{ myself.name }} </div>
-        <div> system message: {{ systemMsg }} </div>
+        <div> current user: {{ myself.name }}</div>
+        <div> system message: {{ systemMsg }}</div>
         <el-tabs type="card" @tab-click="handleClick">
             <el-tab-pane
                     v-for="item in editableTabs"
@@ -11,7 +11,7 @@
             </el-tab-pane>
         </el-tabs>
         <div class="chat-container">
-            <Chat  v-if="visible"
+            <Chat v-if="visible"
                   :participants="participants"
                   :myself="myself"
                   :messages="messages"
@@ -32,7 +32,9 @@
 
 <script>
     import {Chat} from 'vue-quick-chat'
+    import consts from '@/consts'
     import moment from 'moment'
+    import {format} from 'util'
 
     export default {
         name: 'IChat',
@@ -103,7 +105,7 @@
         },
         methods: {
             reRender() {
-                this.visible = false
+                this.visible = false;
                 this.$nextTick(() => {
                     this.visible = true
                 })
@@ -148,21 +150,25 @@
                         sessionId: sessionId,
                         name: "session:" + sessionId
                     });
-                    this.sessionMap[sessionId] = sessionId;
+                    this.sessionMap[sessionId] = consts.ON_LINE;
                 }
                 // participants
                 this.allParticipants[sessionId] = [
                     {
                         name: partnerName,
                         id: partnerId
+                    },
+                    {
+                        name: "system",
+                        id: 0,
                     }
                 ];
                 // // messages
                 this.allMessages[sessionId] = [
                     {
                         content: "Now you can chat with " + partnerName,
-                        myself: true,
-                        participantId: this.myself.id,
+                        myself: false,
+                        participantId: 0,
                         timestamp: moment(),
                         uploaded: false,
                         viewed: true
@@ -193,7 +199,7 @@
                         this.websock.send(data);
                         break;
                     case "MATCH":
-                        if (obj.code == 0) {
+                        if (obj.code === 0) {
                             this.startNewSession(obj.sessionId, obj.partnerId, obj.partnerName, true);
                         } else {
                             // eslint-disable-next-line no-console
@@ -201,7 +207,7 @@
                             this.systemMsg = "There is no uers now. System will retry to match in 3 seconds.";
                             // 尝试继续匹配
                             setTimeout(() => {
-                                if (this.activeSession == -1) {
+                                if (this.activeSession === -1) {
                                     let actions = {
                                         "cmd": "MATCH",
                                         "accountId": this.myself.id
@@ -216,13 +222,24 @@
                         break;
                     case "PUSH_SIGNAL":
                         // 收到了其它人创建的session
-                        if (obj.signalType == "NewSession") {
+                        if ("NewSession" === obj.signalType) {
                             this.startNewSession(obj.sessionId, obj.data.accountId,
                                 obj.data.nickName, true);
+                        } else if ("PartnerExit" === obj.signalType) {
+                            this.sessionDismiss(obj.sessionId, obj.data.accountId);
                         }
-                        // this.reRender();
                         break;
 
+                    case "PING":
+                        if (obj.accountId === this.myself.id) {
+                            let actions = {
+                                "cmd": "PONG",
+                                "accountId": this.myself.id
+                            };
+                            let data = JSON.stringify(actions);
+                            this.websock.send(data);
+                        }
+                        break;
                     case "DIALOGUE":
                         // eslint-disable-next-line no-console
                         console.log("DIALOGUE", obj.code);
@@ -244,6 +261,29 @@
                         console.log('unknow cmd: ' + cmd)
                 }
             },
+            // session解散
+            sessionDismiss(sessionId, exiterId) {
+                this.sessionMap[sessionId] = consts.OFF_LINE;
+                // 写入消息，提示会话的参与者
+                let partnerName = "";
+                // eslint-disable-next-line no-console
+                console.log("exiterId", exiterId)
+                for (let item of this.allParticipants[sessionId]) {
+                    if (item["id"] === exiterId) {
+                        partnerName = item.name;
+                        break;
+                    }
+                }
+                this.allMessages[sessionId].push({
+                    content: format("Partner %s has exit.", partnerName),
+                    myself: false,
+                    // system
+                    participantId: 0,
+                    timestamp: moment(),
+                    uploaded: false,
+                    viewed: true
+                });
+            },
             websocketClose(e) {  //关闭
                 // eslint-disable-next-line no-console
                 console.log('断开连接', e);
@@ -261,19 +301,31 @@
                 * It's important to notice that even when your message wasn't send
                 * yet to the server you have to add the message into the array
                 */
-                // eslint-disable-next-line no-console
-                console.log(message);
-                this.messages.push(message);
-                let actions = {
-                    "cmd": "DIALOGUE",
-                    "senderId": this.myself.id,
-                    "sessionId": this.activeSession,
-                    "content": message.content
-                };
-                let data = JSON.stringify(actions);
-                // eslint-disable-next-line no-console
-                console.log(data);
-                this.websock.send(data);
+
+                if (this.sessionMap[this.activeSession] === consts.OFF_LINE) {
+                    let partnerId = 0;
+                    for (let item of this.participants) {
+                        if (item.id !== this.myself.id && item.id !== 0) {
+                            partnerId = item.id;
+                            break;
+                        }
+                    }
+                    this.sessionDismiss(this.activeSession, partnerId);
+                } else {
+                    // eslint-disable-next-line no-console
+                    console.log(message);
+                    this.messages.push(message);
+                    let actions = {
+                        "cmd": "DIALOGUE",
+                        "senderId": this.myself.id,
+                        "sessionId": this.activeSession,
+                        "content": message.content
+                    };
+                    let data = JSON.stringify(actions);
+                    // eslint-disable-next-line no-console
+                    console.log(data);
+                    this.websock.send(data);
+                }
             },
             onType: function () {
                 // eslint-disable-next-line
