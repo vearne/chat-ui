@@ -85,7 +85,7 @@
                     bottomLeft: "10px",
                     bottomRight: "10px",
                 },
-                hideCloseButton: false,
+                hideCloseButton: true,
                 submitIconSize: "20px",
                 closeButtonIconSize: "20px",
                 asyncMode: true,
@@ -111,7 +111,7 @@
                 })
             },
             initWebSocket() {
-                const wsuri = "ws://127.0.0.1:18224/ws";
+                const wsuri = "ws://vearne.cc:18224/ws";
                 this.websock = new WebSocket(wsuri);
                 this.websock.onmessage = this.websocketOnMessage;
                 this.websock.onopen = this.websocketOnOpen;
