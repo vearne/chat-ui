@@ -34,6 +34,7 @@
     import {Chat} from 'vue-quick-chat'
     import consts from '@/consts'
     import moment from 'moment'
+    import {uuid} from 'vue-uuid';
     import {format} from 'util'
 
     export default {
@@ -94,7 +95,8 @@
                 participants: [],
                 allMessages: {},
                 messages: [],
-
+                // 用于异步修改消息的状态，是否upload，是否viewed
+                ackMessage: {},
             }
         },
         created() {
@@ -111,7 +113,8 @@
                 })
             },
             initWebSocket() {
-                const wsuri = "ws://vearne.cc:18224/ws";
+                // const wsuri = "ws://chat.vearne.cc/ws";
+                const wsuri = "ws://127.0.0.1:18224/ws";
                 this.websock = new WebSocket(wsuri);
                 this.websock.onmessage = this.websocketOnMessage;
                 this.websock.onopen = this.websocketOnOpen;
@@ -170,8 +173,9 @@
                         myself: false,
                         participantId: 0,
                         timestamp: moment(),
-                        uploaded: false,
-                        viewed: true
+                        uploaded: true,
+                        viewed: true,
+                        msgId: 0 // fake
                     }
                 ];
                 this.visible = true;
@@ -243,6 +247,11 @@
                     case "DIALOGUE":
                         // eslint-disable-next-line no-console
                         console.log("DIALOGUE", obj.code);
+                        if (obj.code === 0) {
+                            // 消息发送成功
+                            this.ackMessage[obj.requestId]["uploaded"] = true;
+                            this.ackMessage[obj.requestId]["msgId"] = obj.msgId;
+                        }
                         break;
                     case "PUSH_DIALOGUE":
                         this.allMessages[obj.sessionId].push(
@@ -251,14 +260,45 @@
                                 myself: false,
                                 participantId: obj.senderId,
                                 timestamp: moment(),
-                                uploaded: false,
-                                viewed: true
+                                uploaded: true,
+                                viewed: true,
+                                msgId: obj.msgId
                             }
                         );
+                        // send view ack
+                        if (obj.sessionId === this.activeSession) {
+                            let actions = {
+                                "cmd": "VIEWED_ACK",
+                                "sessionId": this.activeSession,
+                                "accountId": this.myself.id,
+                                "msgId": obj.msgId
+                            };
+                            let data = JSON.stringify(actions);
+                            // eslint-disable-next-line no-console
+                            console.log(data);
+                            this.websock.send(data);
+                        }
+                        break;
+                    case "VIEWED_ACK":
+                        // eslint-disable-next-line no-console
+                        console.log("VIEWED_ACK", obj.code);
+                        break;
+                    case "PUSH_VIEWED_ACK":
+                        // eslint-disable-next-line no-console
+                        console.log("PUSH_VIEWED_ACK", obj.msgId);
+                        var messages = this.allMessages[obj.sessionId];
+                        for(var i=messages.length-1; i>=0;i--){
+                            if (messages[i].myself && messages[i].viewed){
+                                break;
+                            }
+                            if(messages[i].myself && messages[i].msgId <= obj.msgId){
+                                messages[i].viewed = true;
+                            }
+                        }
                         break;
                     default:
                         // eslint-disable-next-line no-console
-                        console.log('unknow cmd: ' + cmd)
+                        console.log('unknow cmd: ' + cmd);
                 }
             },
             // session解散
@@ -280,8 +320,9 @@
                     // system
                     participantId: 0,
                     timestamp: moment(),
-                    uploaded: false,
-                    viewed: true
+                    uploaded: true,
+                    viewed: true,
+                    msgId: 0  // fake
                 });
             },
             websocketClose(e) {  //关闭
@@ -312,14 +353,17 @@
                     }
                     this.sessionDismiss(this.activeSession, partnerId);
                 } else {
-                    // eslint-disable-next-line no-console
-                    console.log(message);
+                    let requestId = uuid.v1();
+                    // 暂存，方便后期更新状态
+                    this.ackMessage[requestId] = message;
+
                     this.messages.push(message);
                     let actions = {
                         "cmd": "DIALOGUE",
                         "senderId": this.myself.id,
                         "sessionId": this.activeSession,
-                        "content": message.content
+                        "content": message.content,
+                        "requestId": requestId
                     };
                     let data = JSON.stringify(actions);
                     // eslint-disable-next-line no-console
