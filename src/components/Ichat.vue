@@ -113,8 +113,8 @@
                 })
             },
             initWebSocket() {
-                // const wsuri = "ws://chat.vearne.cc/ws";
-                const wsuri = "ws://127.0.0.1:18224/ws";
+                const wsuri = "ws://chat.vearne.cc/ws";
+                // const wsuri = "ws://127.0.0.1:18224/ws";
                 this.websock = new WebSocket(wsuri);
                 this.websock.onmessage = this.websocketOnMessage;
                 this.websock.onopen = this.websocketOnOpen;
