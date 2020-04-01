@@ -25,5 +25,5 @@ yarn run test
 yarn run lint
 ```
 
-### 依赖的部分组件
+### Dependent components
 vue-quick-chat
