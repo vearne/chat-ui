@@ -13,12 +13,12 @@ Vue.config.productionTip = false;
 const router = new VueRouter({
     mode: 'history',
     routes: routers
-})
+});
 
 new Vue({
     el: '#app',
     router,
     store,
     render: h => h(App)
-})
+});
 

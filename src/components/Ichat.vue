@@ -36,6 +36,7 @@
     import moment from 'moment'
     import {uuid} from 'vue-uuid';
     import {format} from 'util'
+    import {wsuri} from '../config'
 
     export default {
         name: 'IChat',
@@ -113,8 +114,6 @@
                 })
             },
             initWebSocket() {
-                const wsuri = "ws://chat.vearne.cc/ws";
-                // const wsuri = "ws://127.0.0.1:18224/ws";
                 this.websock = new WebSocket(wsuri);
                 this.websock.onmessage = this.websocketOnMessage;
                 this.websock.onopen = this.websocketOnOpen;
