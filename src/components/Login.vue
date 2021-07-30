@@ -2,7 +2,7 @@
     <div class="modal-dialog">
         <div class="myPadding">
             昵称:
-            <el-input v-model="nickName"></el-input>
+            <el-input v-model="nickName" @keyup.enter.native="loginPro()"></el-input>
         </div>
         <div class="myPadding">
             <button class="btn btn-primary" v-on:click="loginPro">Join</button>
@@ -26,7 +26,6 @@
                 this.$store.commit('SET_NICKNAME', this.nickName);
                 // jump to new location
                 this.$router.push({path: '/chat'});
-
             }
         }
     }
