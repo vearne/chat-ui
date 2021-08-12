@@ -1,679 +1,708 @@
 <template>
-    <div class="hello">
-        <div> current user: {{ myself.name }}</div>
-        <div> system message: {{ systemMsg }}</div>
-        <el-tabs type="card" @tab-click="handleClick">
-            <el-tab-pane
-                    v-for="item in editableTabs"
-                    :key="item.sessionId"
-                    :label="item.nickName"
-                    :name="item.name">
-            </el-tab-pane>
-        </el-tabs>
-        <div class="chat-container">
-            <Chat v-if="visible"
-                  :participants="participants"
-                  :myself="myself"
-                  :messages="messages"
-                  :on-type="onType"
-                  :on-message-submit="onMessageSubmit"
-                  :chat-title="chatTitle"
-                  :colors="colors"
-                  :placeholder="placeholder"
-                  :border-style="borderStyle"
-                  :hide-close-button="hideCloseButton"
-                  :close-button-icon-size="closeButtonIconSize"
-                  :submit-icon-size="submitIconSize"
-                  :async-mode="asyncMode"/>
-        </div>
+  <div class="hello">
+    <div> current user: {{ myself.name }}</div>
+    <div> system message: {{ systemMsg }}</div>
+    <el-tabs type="card" @tab-click="handleClick">
+      <el-tab-pane
+          v-for="item in editableTabs"
+          :key="item.sessionId"
+          :label="item.nickName"
+          :name="item.name">
+      </el-tab-pane>
+    </el-tabs>
+    <div class="chat-container">
+      <Chat v-if="visible"
+            :participants="participants"
+            :myself="myself"
+            :messages="messages"
+            :on-type="onType"
+            :on-message-submit="onMessageSubmit"
+            :chat-title="chatTitle"
+            :colors="colors"
+            :placeholder="placeholder"
+            :border-style="borderStyle"
+            :hide-close-button="hideCloseButton"
+            :close-button-icon-size="closeButtonIconSize"
+            :submit-icon-size="submitIconSize"
+            :async-mode="asyncMode"/>
     </div>
+  </div>
 </template>
 
 
 <script>
-    import {Chat} from 'vue-quick-chat'
-    import consts from '@/consts'
-    import moment from 'moment'
-    import {uuid} from 'vue-uuid';
-    import {format} from 'util'
-    import {wsuri} from '../config'
+import {Chat} from 'vue-quick-chat'
+import consts from '@/consts'
+import moment from 'moment'
+import {uuid} from 'vue-uuid';
+import {format} from 'util'
+import {wsuri} from '../config'
 
-    export default {
-        name: 'IChat',
-        components: {
-            Chat
+export default {
+  name: 'IChat',
+  components: {
+    Chat
+  },
+  data() {
+    return {
+      websock: null,
+      systemMsg: "",
+      activeSession: -1,
+      // activeName: undefined, // 当前激活是哪个tab
+      editableTabs: [],
+      // editableTabs: [{nickName:"", sessionId:-1, name:"session:01"}],
+      sessionMap: {},
+      // 以下为chat相关的数据
+      visible: false,
+      placeholder: 'send your message',
+      myself: {
+        name: this.$store.state.nickName,
+        id: 0,
+        token: ""
+      },
+      chatTitle: "",
+      // placeholder: 'send your message',
+      colors: {
+        header: {
+          bg: '#d30303',
+          text: '#fff'
         },
-        data() {
-            return {
-                websock: null,
-                systemMsg: "",
-                activeSession: -1,
-                // activeName: undefined, // 当前激活是哪个tab
-                editableTabs: [],
-                // editableTabs: [{nickName:"", sessionId:-1, name:"session:01"}],
-                sessionMap: {},
-                // 以下为chat相关的数据
-                visible: false,
-                placeholder: 'send your message',
-                myself: {
-                    name: this.$store.state.nickName,
-                    id: 0
-                },
-                chatTitle: "",
-                // placeholder: 'send your message',
-                colors: {
-                    header: {
-                        bg: '#d30303',
-                        text: '#fff'
-                    },
-                    message: {
-                        myself: {
-                            bg: '#fff',
-                            text: '#bdb8b8'
-                        },
-                        others: {
-                            bg: '#fb4141',
-                            text: '#fff'
-                        },
-                        messagesDisplay: {
-                            bg: '#f7f3f3'
-                        }
-                    },
-                    submitIcon: '#b91010'
-                },
-                borderStyle: {
-                    topLeft: "10px",
-                    topRight: "10px",
-                    bottomLeft: "10px",
-                    bottomRight: "10px",
-                },
-                hideCloseButton: true,
-                submitIconSize: "20px",
-                closeButtonIconSize: "20px",
-                asyncMode: true,
-                // sessionId -> participants
-                allParticipants: {},
-                participants: [],
-                allMessages: {},
-                messages: [],
-                // 用于异步修改消息的状态，是否upload，是否viewed
-                ackMessage: {},
-            }
+        message: {
+          myself: {
+            bg: '#fff',
+            text: '#bdb8b8'
+          },
+          others: {
+            bg: '#fb4141',
+            text: '#fff'
+          },
+          messagesDisplay: {
+            bg: '#f7f3f3'
+          }
         },
-        created() {
-            this.initWebSocket();
+        submitIcon: '#b91010'
+      },
+      borderStyle: {
+        topLeft: "10px",
+        topRight: "10px",
+        bottomLeft: "10px",
+        bottomRight: "10px",
+      },
+      hideCloseButton: true,
+      submitIconSize: "20px",
+      closeButtonIconSize: "20px",
+      asyncMode: true,
+      // sessionId -> participants
+      allParticipants: {},
+      participants: [],
+      allMessages: {},
+      messages: [],
+      // 用于异步修改消息的状态，是否upload，是否viewed
+      ackMessage: {},
+    }
+  },
+  created() {
+    this.initWebSocket();
+  },
+  destroyed() {
+    this.websock.close() //离开路由之后断开websocket连接
+  },
+  methods: {
+    reRender() {
+      this.visible = false;
+      this.$nextTick(() => {
+        this.visible = true
+      })
+    },
+    initWebSocket() {
+      this.websock = new WebSocket(wsuri);
+      this.websock.onmessage = this.websocketOnMessage;
+      this.websock.onopen = this.websocketOnOpen;
+      this.websock.onerror = this.websocketOnError;
+      this.websock.onclose = this.websocketClose;
+    },
+    websocketOnOpen() {
+      //连接建立之后执行send方法发送数据
+      if (this.myself.id <= 0) {
+        // 请求创建新账号
+        let actions = {
+          "cmd": "CRT_ACCOUNT",
+          "nickName": this.$store.state.nickName
+        };
+        let data = JSON.stringify(actions);
+        // eslint-disable-next-line no-console
+        console.log(data);
+        this.websock.send(data);
+      } else {
+        let actions = {
+          "cmd": "RECONNECT",
+          "accountId": this.myself.id,
+          "token": this.myself.token
+        };
+        let data = JSON.stringify(actions);
+        // eslint-disable-next-line no-console
+        console.log(data);
+        this.websock.send(data);
+      }
+    },
+    websocketOnError() {//连接建立失败重连
+      this.initWebSocket();
+    },
+    switchSession(sessionId) {
+      this.activeSession = sessionId;
+      // 重新加载内容
+      this.participants = this.allParticipants[this.activeSession];
+      this.messages = this.allMessages[this.activeSession];
+      // this.chatTitle = "chat with " + this.participants[0].nickName;
+      this.reRender();
+    },
+    // activeFlag 是否切换新会话变成活跃会话
+    startNewSession(sessionId, partnerId, partnerName, activeFlag) {
+      this.systemMsg = "";
+      let session = this.sessionMap[sessionId];
+      if (session == null) { // 创建新的session
+        this.editableTabs.push({
+          nickName: partnerName,
+          sessionId: sessionId,
+          name: "session:" + sessionId
+        });
+        this.sessionMap[sessionId] = consts.ON_LINE;
+      }
+      // participants
+      this.allParticipants[sessionId] = [
+        {
+          name: partnerName,
+          id: partnerId
         },
-        destroyed() {
-            this.websock.close() //离开路由之后断开websocket连接
-        },
-        methods: {
-            reRender() {
-                this.visible = false;
-                this.$nextTick(() => {
-                    this.visible = true
-                })
-            },
-            initWebSocket() {
-                this.websock = new WebSocket(wsuri);
-                this.websock.onmessage = this.websocketOnMessage;
-                this.websock.onopen = this.websocketOnOpen;
-                this.websock.onerror = this.websocketOnError;
-                this.websock.onclose = this.websocketClose;
-            },
-            websocketOnOpen() { //连接建立之后执行send方法发送数据
-                // 请求创建新账号
+        {
+          name: "system",
+          id: 0,
+        }
+      ];
+      // // messages
+      this.allMessages[sessionId] = [
+        {
+          content: "Now you can chat with " + partnerName,
+          myself: false,
+          participantId: 0,
+          timestamp: moment(),
+          uploaded: true,
+          viewed: true,
+          msgId: 0 // fake
+        }
+      ];
+      this.visible = true;
+      if (activeFlag) {
+        this.switchSession(sessionId);
+      }
+
+    },
+
+    websocketOnMessage(e) {
+      // eslint-disable-next-line no-console
+      console.log('get msg', e.data);
+      let obj = JSON.parse(e.data);
+      let cmd = obj.cmd;
+      switch (obj.cmd) {
+        case "RECONNECT":
+        case "CRT_ACCOUNT":
+          // 创建账号成功，就可以开始请求匹配其它聊天对象了
+          // 设置chat
+          this.myself.id = obj.accountId;
+          this.myself.token = obj.token
+
+          var actions = {
+            "cmd": "MATCH",
+            "accountId": obj.accountId
+          };
+          var data = JSON.stringify(actions);
+          this.websock.send(data);
+          break;
+        case "MATCH":
+          if (obj.code === 0) {
+            this.startNewSession(obj.sessionId, obj.partnerId, obj.partnerName, true);
+          } else {
+            // eslint-disable-next-line no-console
+            console.log(obj.code, "retry to match in 3 seconds");
+            this.systemMsg = "There is no uers now. System will retry to match in 3 seconds.";
+            // 尝试继续匹配
+            setTimeout(() => {
+              if (this.activeSession === -1) {
                 let actions = {
-                    "cmd": "CRT_ACCOUNT",
-                    "nickName": this.$store.state.nickName
+                  "cmd": "MATCH",
+                  "accountId": this.myself.id
                 };
                 let data = JSON.stringify(actions);
-                // eslint-disable-next-line no-console
-                console.log(data);
                 this.websock.send(data);
-            },
-            websocketOnError() {//连接建立失败重连
-                this.initWebSocket();
-            },
-            switchSession(sessionId) {
-                this.activeSession = sessionId;
-                // 重新加载内容
-                this.participants = this.allParticipants[this.activeSession];
-                this.messages = this.allMessages[this.activeSession];
-                // this.chatTitle = "chat with " + this.participants[0].nickName;
-                this.reRender();
-            },
-            // activeFlag 是否切换新会话变成活跃会话
-            startNewSession(sessionId, partnerId, partnerName, activeFlag) {
-                this.systemMsg = "";
-                let session = this.sessionMap[sessionId];
-                if (session == null) { // 创建新的session
-                    this.editableTabs.push({
-                        nickName: partnerName,
-                        sessionId: sessionId,
-                        name: "session:" + sessionId
-                    });
-                    this.sessionMap[sessionId] = consts.ON_LINE;
-                }
-                // participants
-                this.allParticipants[sessionId] = [
-                    {
-                        name: partnerName,
-                        id: partnerId
-                    },
-                    {
-                        name: "system",
-                        id: 0,
-                    }
-                ];
-                // // messages
-                this.allMessages[sessionId] = [
-                    {
-                        content: "Now you can chat with " + partnerName,
-                        myself: false,
-                        participantId: 0,
-                        timestamp: moment(),
-                        uploaded: true,
-                        viewed: true,
-                        msgId: 0 // fake
-                    }
-                ];
-                this.visible = true;
-                if (activeFlag) {
-                    this.switchSession(sessionId);
-                }
-
-            },
-
-            websocketOnMessage(e) {
                 // eslint-disable-next-line no-console
-                console.log('get msg', e.data);
-                let obj = JSON.parse(e.data);
-                let cmd = obj.cmd;
-                switch (obj.cmd) {
-                    case "CRT_ACCOUNT":
-                        // 设置chat
-                        this.myself.id = obj.accountId;
+                console.log("retry to match");
+              }
+            }, 3000)
+          }
+          break;
+        case "PUSH_SIGNAL":
+          // 收到了其它人创建的session
+          if ("NewSession" === obj.signalType) {
+            this.startNewSession(obj.sessionId, obj.data.accountId,
+                obj.data.nickName, true);
+          } else if ("PartnerExit" === obj.signalType) {
+            this.sessionDismiss(obj.sessionId, obj.data.accountId);
+          }
+          break;
 
-                        var actions = {
-                            "cmd": "MATCH",
-                            "accountId": obj.accountId
-                        };
-                        var data = JSON.stringify(actions);
-                        this.websock.send(data);
-                        break;
-                    case "MATCH":
-                        if (obj.code === 0) {
-                            this.startNewSession(obj.sessionId, obj.partnerId, obj.partnerName, true);
-                        } else {
-                            // eslint-disable-next-line no-console
-                            console.log(obj.code, "retry to match in 3 seconds");
-                            this.systemMsg = "There is no uers now. System will retry to match in 3 seconds.";
-                            // 尝试继续匹配
-                            setTimeout(() => {
-                                if (this.activeSession === -1) {
-                                    let actions = {
-                                        "cmd": "MATCH",
-                                        "accountId": this.myself.id
-                                    };
-                                    let data = JSON.stringify(actions);
-                                    this.websock.send(data);
-                                    // eslint-disable-next-line no-console
-                                    console.log("retry to match");
-                                }
-                            }, 3000)
-                        }
-                        break;
-                    case "PUSH_SIGNAL":
-                        // 收到了其它人创建的session
-                        if ("NewSession" === obj.signalType) {
-                            this.startNewSession(obj.sessionId, obj.data.accountId,
-                                obj.data.nickName, true);
-                        } else if ("PartnerExit" === obj.signalType) {
-                            this.sessionDismiss(obj.sessionId, obj.data.accountId);
-                        }
-                        break;
-
-                    case "PING":
-                        if (obj.accountId === this.myself.id) {
-                            let actions = {
-                                "cmd": "PONG",
-                                "accountId": this.myself.id
-                            };
-                            let data = JSON.stringify(actions);
-                            this.websock.send(data);
-                        }
-                        break;
-                    case "DIALOGUE":
-                        // eslint-disable-next-line no-console
-                        console.log("DIALOGUE", obj.code);
-                        if (obj.code === 0) {
-                            // 消息发送成功
-                            this.ackMessage[obj.requestId]["uploaded"] = true;
-                            this.ackMessage[obj.requestId]["msgId"] = obj.msgId;
-                        }
-                        break;
-                    case "PUSH_DIALOGUE":
-                        this.allMessages[obj.sessionId].push(
-                            {
-                                content: obj.content,
-                                myself: false,
-                                participantId: obj.senderId,
-                                timestamp: moment(),
-                                uploaded: true,
-                                viewed: true,
-                                msgId: obj.msgId
-                            }
-                        );
-                        // send view ack
-                        if (obj.sessionId === this.activeSession) {
-                            let actions = {
-                                "cmd": "VIEWED_ACK",
-                                "sessionId": this.activeSession,
-                                "accountId": this.myself.id,
-                                "msgId": obj.msgId
-                            };
-                            let data = JSON.stringify(actions);
-                            // eslint-disable-next-line no-console
-                            console.log(data);
-                            this.websock.send(data);
-                        }
-                        break;
-                    case "VIEWED_ACK":
-                        // eslint-disable-next-line no-console
-                        console.log("VIEWED_ACK", obj.code);
-                        break;
-                    case "PUSH_VIEWED_ACK":
-                        // eslint-disable-next-line no-console
-                        console.log("PUSH_VIEWED_ACK", obj.msgId);
-                        var messages = this.allMessages[obj.sessionId];
-                        for(var i=messages.length-1; i>=0;i--){
-                            if (messages[i].myself && messages[i].viewed){
-                                break;
-                            }
-                            if(messages[i].myself && messages[i].msgId <= obj.msgId){
-                                messages[i].viewed = true;
-                            }
-                        }
-                        break;
-                    default:
-                        // eslint-disable-next-line no-console
-                        console.log('unknow cmd: ' + cmd);
-                }
-            },
-            // session解散
-            sessionDismiss(sessionId, exiterId) {
-                this.sessionMap[sessionId] = consts.OFF_LINE;
-                // 写入消息，提示会话的参与者
-                let partnerName = "";
-                // eslint-disable-next-line no-console
-                console.log("exiterId", exiterId)
-                for (let item of this.allParticipants[sessionId]) {
-                    if (item["id"] === exiterId) {
-                        partnerName = item.name;
-                        break;
-                    }
-                }
-                this.allMessages[sessionId].push({
-                    content: format("Partner %s has exit.", partnerName),
-                    myself: false,
-                    // system
-                    participantId: 0,
-                    timestamp: moment(),
-                    uploaded: true,
-                    viewed: true,
-                    msgId: 0  // fake
-                });
-            },
-            websocketClose(e) {  //关闭
-                // eslint-disable-next-line no-console
-                console.log('断开连接', e);
-            },
-            handleClick(obj, event) {
-                // eslint-disable-next-line no-console
-                console.log(obj.$vnode.key);
-                // eslint-disable-next-line no-console
-                console.log(typeof (event));
-                this.switchSession(obj.$vnode.key)
-            },
-            onMessageSubmit(message) {
-                /*
-                * example simulating an upload callback.
-                * It's important to notice that even when your message wasn't send
-                * yet to the server you have to add the message into the array
-                */
-
-                if (this.sessionMap[this.activeSession] === consts.OFF_LINE) {
-                    let partnerId = 0;
-                    for (let item of this.participants) {
-                        if (item.id !== this.myself.id && item.id !== 0) {
-                            partnerId = item.id;
-                            break;
-                        }
-                    }
-                    this.sessionDismiss(this.activeSession, partnerId);
-                } else {
-                    let requestId = uuid.v1();
-                    // 暂存，方便后期更新状态
-                    this.ackMessage[requestId] = message;
-
-                    this.messages.push(message);
-                    let actions = {
-                        "cmd": "DIALOGUE",
-                        "senderId": this.myself.id,
-                        "sessionId": this.activeSession,
-                        "content": message.content,
-                        "requestId": requestId
-                    };
-                    let data = JSON.stringify(actions);
-                    // eslint-disable-next-line no-console
-                    console.log(data);
-                    this.websock.send(data);
-                }
-            },
-            onType: function () {
-                // eslint-disable-next-line
-                console.log('typing');
-            },
+        case "PING":
+          if (obj.accountId === this.myself.id) {
+            let actions = {
+              "cmd": "PONG",
+              "accountId": this.myself.id
+            };
+            let data = JSON.stringify(actions);
+            this.websock.send(data);
+          }
+          break;
+        case "DIALOGUE":
+          // eslint-disable-next-line no-console
+          console.log("DIALOGUE", obj.code);
+          if (obj.code === 0) {
+            // 消息发送成功
+            this.ackMessage[obj.requestId]["uploaded"] = true;
+            this.ackMessage[obj.requestId]["msgId"] = obj.msgId;
+          }
+          break;
+        case "PUSH_DIALOGUE":
+          this.allMessages[obj.sessionId].push(
+              {
+                content: obj.content,
+                myself: false,
+                participantId: obj.senderId,
+                timestamp: moment(),
+                uploaded: true,
+                viewed: true,
+                msgId: obj.msgId
+              }
+          );
+          // send view ack
+          if (obj.sessionId === this.activeSession) {
+            let actions = {
+              "cmd": "VIEWED_ACK",
+              "sessionId": this.activeSession,
+              "accountId": this.myself.id,
+              "msgId": obj.msgId
+            };
+            let data = JSON.stringify(actions);
+            // eslint-disable-next-line no-console
+            console.log(data);
+            this.websock.send(data);
+          }
+          break;
+        case "VIEWED_ACK":
+          // eslint-disable-next-line no-console
+          console.log("VIEWED_ACK", obj.code);
+          break;
+        case "PUSH_VIEWED_ACK":
+          // eslint-disable-next-line no-console
+          console.log("PUSH_VIEWED_ACK", obj.msgId);
+          var messages = this.allMessages[obj.sessionId];
+          for (var i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].myself && messages[i].viewed) {
+              break;
+            }
+            if (messages[i].myself && messages[i].msgId <= obj.msgId) {
+              messages[i].viewed = true;
+            }
+          }
+          break;
+        default:
+          // eslint-disable-next-line no-console
+          console.log('unknow cmd: ' + cmd);
+      }
+    },
+    // session解散
+    sessionDismiss(sessionId, exiterId) {
+      this.sessionMap[sessionId] = consts.OFF_LINE;
+      // 写入消息，提示会话的参与者
+      let partnerName = "";
+      // eslint-disable-next-line no-console
+      console.log("exiterId", exiterId)
+      for (let item of this.allParticipants[sessionId]) {
+        if (item["id"] === exiterId) {
+          partnerName = item.name;
+          break;
         }
-    }
+      }
+      this.allMessages[sessionId].push({
+        content: format("Partner %s has exit.", partnerName),
+        myself: false,
+        // system
+        participantId: 0,
+        timestamp: moment(),
+        uploaded: true,
+        viewed: true,
+        msgId: 0  // fake
+      });
+    },
+    websocketClose(e) {  //关闭
+      // alert("Connection is disconnected.");
+      // this.initWebSocket();
+      // eslint-disable-next-line no-console
+      this.allMessages[this.activeSession].push({
+        content: "Connection is disconnected.",
+        myself: false,
+        participantId: 0,
+        timestamp: moment(),
+        uploaded: true,
+        viewed: true,
+        msgId: 0 // fake
+      });
+      // eslint-disable-next-line no-console
+      console.log('disconnected', e);
+    },
+    handleClick(obj, event) {
+      // eslint-disable-next-line no-console
+      console.log(obj.$vnode.key);
+      // eslint-disable-next-line no-console
+      console.log(typeof (event));
+      this.switchSession(obj.$vnode.key)
+    },
+    onMessageSubmit(message) {
+      /*
+      * example simulating an upload callback.
+      * It's important to notice that even when your message wasn't send
+      * yet to the server you have to add the message into the array
+      */
+
+      if (this.sessionMap[this.activeSession] === consts.OFF_LINE) {
+        let partnerId = 0;
+        for (let item of this.participants) {
+          if (item.id !== this.myself.id && item.id !== 0) {
+            partnerId = item.id;
+            break;
+          }
+        }
+        this.sessionDismiss(this.activeSession, partnerId);
+      } else {
+        let requestId = uuid.v1();
+        // 暂存，方便后期更新状态
+        this.ackMessage[requestId] = message;
+
+        this.messages.push(message);
+        let actions = {
+          "cmd": "DIALOGUE",
+          "senderId": this.myself.id,
+          "sessionId": this.activeSession,
+          "content": message.content,
+          "requestId": requestId
+        };
+        let data = JSON.stringify(actions);
+        // eslint-disable-next-line no-console
+        console.log(data);
+        this.websock.send(data);
+      }
+    },
+    onType: function () {
+      // eslint-disable-next-line
+      console.log('typing');
+    },
+  }
+}
 </script>
 
 <style lang="less">
-    .quick-chat-container {
-        display: flex;
-        width: 100%;
-        height: 100%;
-        background: #f0eeee;
-        flex-direction: column;
-        align-items: stretch;
-        overflow: hidden;
+.quick-chat-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: #f0eeee;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.quick-chat-container .header-container {
+  height: 70px;
+  display: flex;
+  padding: 0 20px 0 10px;
+  align-items: center;
+  -webkit-box-shadow: 0 2px 20px 2px rgba(90, 90, 90, 0.47);
+  box-shadow: 0 2px 20px 2px rgba(90, 90, 90, 0.47);
+  z-index: 5;
+
+  .header-title {
+    padding: 10px;
+    flex: 1;
+    text-align: left;
+  }
+
+  .header-title-text {
+    margin-bottom: 0;
+  }
+
+  .header-paticipants-text {
+    color: #e4e4e4;
+    font-size: 12px;
+    margin-top: 5px;
+    max-height: 30px;
+    overflow: hidden;
+  }
+
+  .header-exit-button {
+    text-decoration: none;
+    color: #fff;
+    font-size: 20px;
+  }
+
+  .icon-close-chat {
+    color: #fff;
+    width: 100%;
+  }
+
+  .icon-close-chat:hover {
+    color: rgb(238, 121, 121)
+  }
+}
+
+.quick-chat-container .container-message-display {
+  flex: 1;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 10px;
+  max-height: 100%;
+  /************** Safari 10.1+ ********************/
+  @media not all and (min-resolution: .001dpcm) {
+    @supports (-webkit-appearance:none) {
+
+      .message-container {
+        display: -webkit-box !important;
+      }
+
     }
+  }
 
-    .quick-chat-container .header-container {
-        height: 70px;
-        display: flex;
-        padding: 0 20px 0 10px;
-        align-items: center;
-        -webkit-box-shadow: 0 2px 20px 2px rgba(90, 90, 90, 0.47);
-        box-shadow: 0 2px 20px 2px rgba(90, 90, 90, 0.47);
-        z-index: 5;
+  .message-text {
+    background: #fff;
+    padding: 6px 10px;
+    line-height: 14px;
+    border-radius: 15px;
+    margin: 5px 0 5px 0;
+    max-width: 70%;
+    overflow-wrap: break-word;
+    text-align: left;
+    white-space: pre-wrap;
+  }
 
-        .header-title {
-            padding: 10px;
-            flex: 1;
-            text-align: left;
-        }
+  .message-text > p {
+    margin: 5px 0 5px 0;
+    font-size: 14px;
+  }
 
-        .header-title-text {
-            margin-bottom: 0;
-        }
+  .message-timestamp {
+    padding: 2px 7px;
+    border-radius: 15px;
+    margin: 0;
+    max-width: 50%;
+    overflow-wrap: break-word;
+    text-align: left;
+    font-size: 10px;
+    color: #bdb8b8;
+    width: 100%;
+    display: flex;
+    align-items: center;
+  }
 
-        .header-paticipants-text {
-            color: #e4e4e4;
-            font-size: 12px;
-            margin-top: 5px;
-            max-height: 30px;
-            overflow: hidden;
-        }
+  .my-message > .message-timestamp {
+    text-align: right;
+  }
 
-        .header-exit-button {
-            text-decoration: none;
-            color: #fff;
-            font-size: 20px;
-        }
+  .my-message {
+    justify-content: flex-end;
+    padding-right: 15px;
+    align-items: flex-end;
+  }
 
-        .icon-close-chat {
-            color: #fff;
-            width: 100%;
-        }
+  .other-message {
+    justify-content: flex-start;
+    padding-left: 15px;
+    align-items: flex-start;
+  }
 
-        .icon-close-chat:hover {
-            color: rgb(238, 121, 121)
-        }
-    }
+  .other-message > .message-text {
+    color: #fff;
+    border-bottom-left-radius: 0;
+  }
 
-    .quick-chat-container .container-message-display {
-        flex: 1;
-        overflow-y: scroll;
-        overflow-x: hidden;
-        display: flex;
-        flex-direction: column;
-        padding-bottom: 10px;
-        max-height: 100%;
-        /************** Safari 10.1+ ********************/
-        @media not all and (min-resolution: .001dpcm) {
-            @supports (-webkit-appearance:none) {
+  .my-message > .message-text {
+    border-bottom-right-radius: 0;
+  }
 
-                .message-container {
-                    display: -webkit-box !important;
-                }
+  .message-container {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+  }
 
-            }
-        }
+  .message-username {
+    font-size: 10px;
+    font-weight: bold;
+  }
 
-        .message-text {
-            background: #fff;
-            padding: 6px 10px;
-            line-height: 14px;
-            border-radius: 15px;
-            margin: 5px 0 5px 0;
-            max-width: 70%;
-            overflow-wrap: break-word;
-            text-align: left;
-            white-space: pre-wrap;
-        }
+  .icon-sent {
+    width: 12px;
+    padding-left: 5px;
+    color: rgb(129, 127, 127);
+  }
 
-        .message-text > p {
-            margin: 5px 0 5px 0;
-            font-size: 14px;
-        }
+  .message-loading {
+    height: 8px;
+    width: 8px;
+    border: 1px solid rgb(187, 183, 183);
+    border-left-color: rgb(59, 59, 59);
+    border-radius: 50%;
+    margin-left: 5px;
+    display: inline-block;
+    animation: spin 1.3s ease infinite;
+  }
 
-        .message-timestamp {
-            padding: 2px 7px;
-            border-radius: 15px;
-            margin: 0;
-            max-width: 50%;
-            overflow-wrap: break-word;
-            text-align: left;
-            font-size: 10px;
-            color: #bdb8b8;
-            width: 100%;
-            display: flex;
-            align-items: center;
-        }
+  .loader .message-loading {
+    width: 16px;
+    height: 16px;
+    margin: 5px 0 0 0;
+  }
+}
 
-        .my-message > .message-timestamp {
-            text-align: right;
-        }
+.quick-chat-container .container-message-manager {
+  height: 65px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 20px 0 20px;
+  -webkit-box-shadow: 0px -2px 40px 0px rgba(186, 186, 186, 0.67);
+  box-shadow: 0px -2px 40px 0px rgba(186, 186, 186, 0.67);
 
-        .my-message {
-            justify-content: flex-end;
-            padding-right: 15px;
-            align-items: flex-end;
-        }
+  .message-text-box {
+    padding: 0 10px 0 10px;
+    flex: 1;
+    overflow: hidden;
+  }
 
-        .other-message {
-            justify-content: flex-start;
-            padding-left: 15px;
-            align-items: flex-start;
-        }
+  .message-input {
+    width: 100%;
+    resize: none;
+    border: none;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.33;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #565867;
+    -webkit-font-smoothing: antialiased;
+    max-height: 40px;
+    bottom: 0;
+    overflow: scroll;
+    overflow-x: hidden;
+    overflow-y: auto;
+    text-align: left;
+    cursor: text;
+    display: inline-block;
+  }
 
-        .other-message > .message-text {
-            color: #fff;
-            border-bottom-left-radius: 0;
-        }
+  .message-input:empty:before {
+    /*content: attr(placeholder);*/
+    display: block; /* For Firefox */
+    filter: contrast(15%);
+    outline: none;
+  }
 
-        .my-message > .message-text {
-            border-bottom-right-radius: 0;
-        }
+  .message-input:focus {
+    outline: none;
+  }
 
-        .message-container {
-            display: flex;
-            flex-wrap: wrap;
-            flex-direction: column;
-        }
+  .container-send-message {
+    margin-left: 10px;
+  }
 
-        .message-username {
-            font-size: 10px;
-            font-weight: bold;
-        }
+  .container-send-message svg {
+    -webkit-box-sizing: content-box;
+    box-sizing: content-box;
+  }
 
-        .icon-sent {
-            width: 12px;
-            padding-left: 5px;
-            color: rgb(129, 127, 127);
-        }
+  .icon-send-message {
+    width: 20px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: 0.3s;
+    border-radius: 11px;
+    padding: 8px;
+  }
 
-        .message-loading {
-            height: 8px;
-            width: 8px;
-            border: 1px solid rgb(187, 183, 183);
-            border-left-color: rgb(59, 59, 59);
-            border-radius: 50%;
-            margin-left: 5px;
-            display: inline-block;
-            animation: spin 1.3s ease infinite;
-        }
+  .icon-send-message:hover {
+    opacity: 1;
+    background: #eee;
+  }
+}
 
-        .loader .message-loading {
-            width: 16px;
-            height: 16px;
-            margin: 5px 0 0 0;
-        }
-    }
+.content {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  flex-wrap: wrap;
+}
 
-    .quick-chat-container .container-message-manager {
-        height: 65px;
-        background: #fff;
-        display: flex;
-        align-items: center;
-        padding: 0 20px 0 20px;
-        -webkit-box-shadow: 0px -2px 40px 0px rgba(186, 186, 186, 0.67);
-        box-shadow: 0px -2px 40px 0px rgba(186, 186, 186, 0.67);
+.chat-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(247, 243, 243);
+  padding: 10px 0 10px 0;
+  height: 500px;
+  width: 350px;
+}
 
-        .message-text-box {
-            padding: 0 10px 0 10px;
-            flex: 1;
-            overflow: hidden;
-        }
+.external-controller {
+  background: #2c3e50;
+  height: 300px;
+  width: 600px;
+  display: flex;
+  color: #eee;
+}
 
-        .message-input {
-            width: 100%;
-            resize: none;
-            border: none;
-            outline: none;
-            box-sizing: border-box;
-            font-size: 15px;
-            font-weight: 400;
-            line-height: 1.33;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            color: #565867;
-            -webkit-font-smoothing: antialiased;
-            max-height: 40px;
-            bottom: 0;
-            overflow: scroll;
-            overflow-x: hidden;
-            overflow-y: auto;
-            text-align: left;
-            cursor: text;
-            display: inline-block;
-        }
+.controller-btn-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-left: 20px;
+  padding-right: 20px;
+  flex-wrap: wrap;
+}
 
-        .message-input:empty:before {
-            /*content: attr(placeholder);*/
-            display: block; /* For Firefox */
-            filter: contrast(15%);
-            outline: none;
-        }
+.btn-message {
+  cursor: pointer;
+  background: #eee;
+  border: none;
+  height: 40px;
+  color: #2c3e50;
+  border-radius: 5px;
+  outline: none;
+  transition: 0.3s;
+}
 
-        .message-input:focus {
-            outline: none;
-        }
+.btn-participant {
+  cursor: pointer;
+  background: #eee;
+  border: none;
+  height: 40px;
+  color: #2c3e50;
+  border-radius: 5px;
+  outline: none;
+  transition: 0.3s;
+}
 
-        .container-send-message {
-            margin-left: 10px;
-        }
-
-        .container-send-message svg {
-            -webkit-box-sizing: content-box;
-            box-sizing: content-box;
-        }
-
-        .icon-send-message {
-            width: 20px;
-            cursor: pointer;
-            opacity: 0.7;
-            transition: 0.3s;
-            border-radius: 11px;
-            padding: 8px;
-        }
-
-        .icon-send-message:hover {
-            opacity: 1;
-            background: #eee;
-        }
-    }
-
-    .content {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-evenly;
-        flex-wrap: wrap;
-    }
-
-    .chat-container {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgb(247, 243, 243);
-        padding: 10px 0 10px 0;
-        height: 500px;
-        width: 350px;
-    }
-
-    .external-controller {
-        background: #2c3e50;
-        height: 300px;
-        width: 600px;
-        display: flex;
-        color: #eee;
-    }
-
-    .controller-btn-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding-left: 20px;
-        padding-right: 20px;
-        flex-wrap: wrap;
-    }
-
-    .btn-message {
-        cursor: pointer;
-        background: #eee;
-        border: none;
-        height: 40px;
-        color: #2c3e50;
-        border-radius: 5px;
-        outline: none;
-        transition: 0.3s;
-    }
-
-    .btn-participant {
-        cursor: pointer;
-        background: #eee;
-        border: none;
-        height: 40px;
-        color: #2c3e50;
-        border-radius: 5px;
-        outline: none;
-        transition: 0.3s;
-    }
-
-    .btn-message:hover {
-        background: rgb(255, 255, 255);
-    }
+.btn-message:hover {
+  background: rgb(255, 255, 255);
+}
 
 </style>
