@@ -231,6 +231,9 @@ export default {
       let cmd = obj.cmd;
       switch (obj.cmd) {
         case "RECONNECT":
+          // eslint-disable-next-line no-console
+          console.log("reconnect resp:", obj.code === 0);
+          break;
         case "CRT_ACCOUNT":
           // 创建账号成功，就可以开始请求匹配其它聊天对象了
           // 设置chat
