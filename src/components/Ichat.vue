@@ -375,8 +375,8 @@ export default {
       // eslint-disable-next-line no-console
       console.log('websocketClose', e.data);
       if(this.retry < 5){
-        this.systemMsg = `Connection is disconnected. Try to reconnection in ${ this.retry } seconds.`
         this.retry++
+        this.systemMsg = `Connection is disconnected. Try to reconnection in ${ this.retry } seconds.`
         setTimeout(this.initWebSocket, this.retry * 1000);
       }else {
         this.systemMsg = "Connection is disconnected.Please close the window."
