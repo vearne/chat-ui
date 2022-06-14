@@ -121,6 +121,8 @@ export default {
       messages: [],
       // 用于异步修改消息的状态，是否upload，是否viewed
       ackMessage: {},
+      // 用于连接断开后的重试
+      retry: 0,
     }
   },
   created() {
@@ -166,6 +168,8 @@ export default {
         console.log(data);
         this.websock.send(data);
       }
+
+      this.retry = 0
     },
     websocketOnError() {//连接建立失败重连
       this.initWebSocket();
@@ -363,21 +367,19 @@ export default {
         msgId: 0  // fake
       });
     },
+
     websocketClose(e) {  //关闭
       // alert("Connection is disconnected.");
       // this.initWebSocket();
       // eslint-disable-next-line no-console
-      this.allMessages[this.activeSession].push({
-        content: "Connection is disconnected.",
-        myself: false,
-        participantId: 0,
-        timestamp: moment(),
-        uploaded: true,
-        viewed: true,
-        msgId: 0 // fake
-      });
-      // eslint-disable-next-line no-console
-      console.log('disconnected', e);
+      if(this.retry < 5){
+        this.systemMsg = `Connection is disconnected. Try to reconnection in ${ this.retry } seconds.`
+        this.retry++
+        setTimeout(this.initWebSocket, this.retry * 1000);
+      }else {
+        this.systemMsg = "Connection is disconnected.Please close the window."
+        console.log('disconnected', e);
+      }
     },
     handleClick(obj, event) {
       // eslint-disable-next-line no-console
@@ -450,302 +452,3 @@ export default {
 }
 
 </style>
-<!--<style lang="less">-->
-<!--.quick-chat-container {-->
-<!--  display: flex;-->
-<!--  width: 100%;-->
-<!--  height: 100%;-->
-<!--  background: #f0eeee;-->
-<!--  flex-direction: column;-->
-<!--  align-items: stretch;-->
-<!--  overflow: hidden;-->
-<!--}-->
-
-<!--.quick-chat-container .header-container {-->
-<!--  height: 70px;-->
-<!--  display: flex;-->
-<!--  padding: 0 20px 0 10px;-->
-<!--  align-items: center;-->
-<!--  -webkit-box-shadow: 0 2px 20px 2px rgba(90, 90, 90, 0.47);-->
-<!--  box-shadow: 0 2px 20px 2px rgba(90, 90, 90, 0.47);-->
-<!--  z-index: 5;-->
-
-<!--  .header-title {-->
-<!--    padding: 10px;-->
-<!--    flex: 1;-->
-<!--    text-align: left;-->
-<!--  }-->
-
-<!--  .header-title-text {-->
-<!--    margin-bottom: 0;-->
-<!--  }-->
-
-<!--  .header-paticipants-text {-->
-<!--    color: #e4e4e4;-->
-<!--    font-size: 12px;-->
-<!--    margin-top: 5px;-->
-<!--    max-height: 30px;-->
-<!--    overflow: hidden;-->
-<!--  }-->
-
-<!--  .header-exit-button {-->
-<!--    text-decoration: none;-->
-<!--    color: #fff;-->
-<!--    font-size: 20px;-->
-<!--  }-->
-
-<!--  .icon-close-chat {-->
-<!--    color: #fff;-->
-<!--    width: 100%;-->
-<!--  }-->
-
-<!--  .icon-close-chat:hover {-->
-<!--    color: rgb(238, 121, 121)-->
-<!--  }-->
-<!--}-->
-
-<!--.quick-chat-container .container-message-display {-->
-<!--  flex: 1;-->
-<!--  overflow-y: scroll;-->
-<!--  overflow-x: hidden;-->
-<!--  display: flex;-->
-<!--  flex-direction: column;-->
-<!--  padding-bottom: 10px;-->
-<!--  max-height: 100%;-->
-<!--  /************** Safari 10.1+ ********************/-->
-<!--  @media not all and (min-resolution: .001dpcm) {-->
-<!--    @supports (-webkit-appearance:none) {-->
-
-<!--      .message-container {-->
-<!--        display: -webkit-box !important;-->
-<!--      }-->
-
-<!--    }-->
-<!--  }-->
-
-<!--  .message-text {-->
-<!--    background: #fff;-->
-<!--    padding: 6px 10px;-->
-<!--    line-height: 14px;-->
-<!--    border-radius: 15px;-->
-<!--    margin: 5px 0 5px 0;-->
-<!--    max-width: 70%;-->
-<!--    overflow-wrap: break-word;-->
-<!--    text-align: left;-->
-<!--    white-space: pre-wrap;-->
-<!--  }-->
-
-<!--  .message-text > p {-->
-<!--    margin: 5px 0 5px 0;-->
-<!--    font-size: 14px;-->
-<!--  }-->
-
-<!--  .message-timestamp {-->
-<!--    padding: 2px 7px;-->
-<!--    border-radius: 15px;-->
-<!--    margin: 0;-->
-<!--    max-width: 50%;-->
-<!--    overflow-wrap: break-word;-->
-<!--    text-align: left;-->
-<!--    font-size: 10px;-->
-<!--    color: #bdb8b8;-->
-<!--    width: 100%;-->
-<!--    display: flex;-->
-<!--    align-items: center;-->
-<!--  }-->
-
-<!--  .my-message > .message-timestamp {-->
-<!--    text-align: right;-->
-<!--  }-->
-
-<!--  .my-message {-->
-<!--    justify-content: flex-end;-->
-<!--    padding-right: 15px;-->
-<!--    align-items: flex-end;-->
-<!--  }-->
-
-<!--  .other-message {-->
-<!--    justify-content: flex-start;-->
-<!--    padding-left: 15px;-->
-<!--    align-items: flex-start;-->
-<!--  }-->
-
-<!--  .other-message > .message-text {-->
-<!--    color: #fff;-->
-<!--    border-bottom-left-radius: 0;-->
-<!--  }-->
-
-<!--  .my-message > .message-text {-->
-<!--    border-bottom-right-radius: 0;-->
-<!--  }-->
-
-<!--  .message-container {-->
-<!--    display: flex;-->
-<!--    flex-wrap: wrap;-->
-<!--    flex-direction: column;-->
-<!--  }-->
-
-<!--  .message-username {-->
-<!--    font-size: 10px;-->
-<!--    font-weight: bold;-->
-<!--  }-->
-
-<!--  .icon-sent {-->
-<!--    width: 12px;-->
-<!--    padding-left: 5px;-->
-<!--    color: rgb(129, 127, 127);-->
-<!--  }-->
-
-<!--  .message-loading {-->
-<!--    height: 8px;-->
-<!--    width: 8px;-->
-<!--    border: 1px solid rgb(187, 183, 183);-->
-<!--    border-left-color: rgb(59, 59, 59);-->
-<!--    border-radius: 50%;-->
-<!--    margin-left: 5px;-->
-<!--    display: inline-block;-->
-<!--    animation: spin 1.3s ease infinite;-->
-<!--  }-->
-
-<!--  .loader .message-loading {-->
-<!--    width: 16px;-->
-<!--    height: 16px;-->
-<!--    margin: 5px 0 0 0;-->
-<!--  }-->
-<!--}-->
-
-<!--.quick-chat-container .container-message-manager {-->
-<!--  height: 65px;-->
-<!--  background: #fff;-->
-<!--  display: flex;-->
-<!--  align-items: center;-->
-<!--  padding: 0 20px 0 20px;-->
-<!--  -webkit-box-shadow: 0px -2px 40px 0px rgba(186, 186, 186, 0.67);-->
-<!--  box-shadow: 0px -2px 40px 0px rgba(186, 186, 186, 0.67);-->
-
-<!--  .message-text-box {-->
-<!--    padding: 0 10px 0 10px;-->
-<!--    flex: 1;-->
-<!--    overflow: hidden;-->
-<!--  }-->
-
-<!--  .message-input {-->
-<!--    width: 100%;-->
-<!--    resize: none;-->
-<!--    border: none;-->
-<!--    outline: none;-->
-<!--    box-sizing: border-box;-->
-<!--    font-size: 15px;-->
-<!--    font-weight: 400;-->
-<!--    line-height: 1.33;-->
-<!--    white-space: pre-wrap;-->
-<!--    word-wrap: break-word;-->
-<!--    color: #565867;-->
-<!--    -webkit-font-smoothing: antialiased;-->
-<!--    max-height: 40px;-->
-<!--    bottom: 0;-->
-<!--    overflow: scroll;-->
-<!--    overflow-x: hidden;-->
-<!--    overflow-y: auto;-->
-<!--    text-align: left;-->
-<!--    cursor: text;-->
-<!--    display: inline-block;-->
-<!--  }-->
-
-<!--  .message-input:empty:before {-->
-<!--    /*content: attr(placeholder);*/-->
-<!--    display: block; /* For Firefox */-->
-<!--    filter: contrast(15%);-->
-<!--    outline: none;-->
-<!--  }-->
-
-<!--  .message-input:focus {-->
-<!--    outline: none;-->
-<!--  }-->
-
-<!--  .container-send-message {-->
-<!--    margin-left: 10px;-->
-<!--  }-->
-
-<!--  .container-send-message svg {-->
-<!--    -webkit-box-sizing: content-box;-->
-<!--    box-sizing: content-box;-->
-<!--  }-->
-
-<!--  .icon-send-message {-->
-<!--    width: 20px;-->
-<!--    cursor: pointer;-->
-<!--    opacity: 0.7;-->
-<!--    transition: 0.3s;-->
-<!--    border-radius: 11px;-->
-<!--    padding: 8px;-->
-<!--  }-->
-
-<!--  .icon-send-message:hover {-->
-<!--    opacity: 1;-->
-<!--    background: #eee;-->
-<!--  }-->
-<!--}-->
-
-<!--.content {-->
-<!--  width: 100%;-->
-<!--  display: flex;-->
-<!--  align-items: center;-->
-<!--  justify-content: space-evenly;-->
-<!--  flex-wrap: wrap;-->
-<!--}-->
-
-<!--.chat-container {-->
-<!--  display: flex;-->
-<!--  align-items: center;-->
-<!--  justify-content: center;-->
-<!--  background: rgb(247, 243, 243);-->
-<!--  padding: 10px 0 10px 0;-->
-<!--  height: 500px;-->
-<!--  width: 350px;-->
-<!--}-->
-
-<!--.external-controller {-->
-<!--  background: #2c3e50;-->
-<!--  height: 300px;-->
-<!--  width: 600px;-->
-<!--  display: flex;-->
-<!--  color: #eee;-->
-<!--}-->
-
-<!--.controller-btn-container {-->
-<!--  display: flex;-->
-<!--  justify-content: center;-->
-<!--  align-items: center;-->
-<!--  padding-left: 20px;-->
-<!--  padding-right: 20px;-->
-<!--  flex-wrap: wrap;-->
-<!--}-->
-
-<!--.btn-message {-->
-<!--  cursor: pointer;-->
-<!--  background: #eee;-->
-<!--  border: none;-->
-<!--  height: 40px;-->
-<!--  color: #2c3e50;-->
-<!--  border-radius: 5px;-->
-<!--  outline: none;-->
-<!--  transition: 0.3s;-->
-<!--}-->
-
-<!--.btn-participant {-->
-<!--  cursor: pointer;-->
-<!--  background: #eee;-->
-<!--  border: none;-->
-<!--  height: 40px;-->
-<!--  color: #2c3e50;-->
-<!--  border-radius: 5px;-->
-<!--  outline: none;-->
-<!--  transition: 0.3s;-->
-<!--}-->
-
-<!--.btn-message:hover {-->
-<!--  background: rgb(255, 255, 255);-->
-<!--}-->
-
-<!--</style>-->
