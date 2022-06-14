@@ -369,16 +369,14 @@ export default {
     },
 
     websocketClose(e) {  //关闭
-      // alert("Connection is disconnected.");
-      // this.initWebSocket();
       // eslint-disable-next-line no-console
+      console.log('websocketClose', e.data);
       if(this.retry < 5){
         this.systemMsg = `Connection is disconnected. Try to reconnection in ${ this.retry } seconds.`
         this.retry++
         setTimeout(this.initWebSocket, this.retry * 1000);
       }else {
         this.systemMsg = "Connection is disconnected.Please close the window."
-        console.log('disconnected', e);
       }
     },
     handleClick(obj, event) {
