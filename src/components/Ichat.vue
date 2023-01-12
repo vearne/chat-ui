@@ -150,7 +150,7 @@ export default {
       if (this.myself.id <= 0) {
         // 请求创建新账号
         let actions = {
-          "cmd": "CRT_ACCOUNT",
+          "cmd": "CRT_ACCOUNT_REQ",
           "nickName": this.$store.state.nickName
         };
         let data = JSON.stringify(actions);
@@ -159,7 +159,7 @@ export default {
         this.websock.send(data);
       } else {
         let actions = {
-          "cmd": "RECONNECT",
+          "cmd": "RECONNECT_REQ",
           "accountId": this.myself.id,
           "token": this.myself.token
         };
@@ -170,9 +170,11 @@ export default {
       }
 
       this.retry = 0
+      this.systemMsg = "Connection established successfully.";
     },
     websocketOnError() {//连接建立失败重连
-      this.initWebSocket();
+      // eslint-disable-next-line no-console
+      console.log("websocketOnError");
     },
     switchSession(sessionId) {
       this.activeSession = sessionId;
@@ -230,24 +232,24 @@ export default {
       let obj = JSON.parse(e.data);
       let cmd = obj.cmd;
       switch (obj.cmd) {
-        case "RECONNECT":
+        case "RECONNECT_RESP":
           // eslint-disable-next-line no-console
           console.log("reconnect resp:", obj.code === 0);
           break;
-        case "CRT_ACCOUNT":
+        case "CRT_ACCOUNT_RESP":
           // 创建账号成功，就可以开始请求匹配其它聊天对象了
           // 设置chat
           this.myself.id = obj.accountId;
           this.myself.token = obj.token
 
           var actions = {
-            "cmd": "MATCH",
+            "cmd": "MATCH_REQ",
             "accountId": obj.accountId
           };
           var data = JSON.stringify(actions);
           this.websock.send(data);
           break;
-        case "MATCH":
+        case "MATCH_RESP":
           if (obj.code === 0) {
             this.startNewSession(obj.sessionId, obj.partnerId, obj.partnerName, true);
           } else {
@@ -258,7 +260,7 @@ export default {
             setTimeout(() => {
               if (this.activeSession === -1) {
                 let actions = {
-                  "cmd": "MATCH",
+                  "cmd": "MATCH_REQ",
                   "accountId": this.myself.id
                 };
                 let data = JSON.stringify(actions);
@@ -269,7 +271,7 @@ export default {
             }, 3000)
           }
           break;
-        case "PUSH_SIGNAL":
+        case "PUSH_SIGNAL_REQ":
           // 收到了其它人创建的session
           if ("NewSession" === obj.signalType) {
             this.startNewSession(obj.sessionId, obj.data.accountId,
@@ -282,14 +284,14 @@ export default {
         case "PING":
           if (obj.accountId === this.myself.id) {
             let actions = {
-              "cmd": "PONG",
+              "cmd": "PING_RESP",
               "accountId": this.myself.id
             };
             let data = JSON.stringify(actions);
             this.websock.send(data);
           }
           break;
-        case "DIALOGUE":
+        case "DIALOGUE_RESP":
           // eslint-disable-next-line no-console
           console.log("DIALOGUE", obj.code);
           if (obj.code === 0) {
@@ -298,7 +300,7 @@ export default {
             this.ackMessage[obj.requestId]["msgId"] = obj.msgId;
           }
           break;
-        case "PUSH_DIALOGUE":
+        case "PUSH_DIALOGUE_REQ":
           this.allMessages[obj.sessionId].push(
               {
                 content: obj.content,
@@ -313,7 +315,7 @@ export default {
           // send view ack
           if (obj.sessionId === this.activeSession) {
             let actions = {
-              "cmd": "VIEWED_ACK",
+              "cmd": "VIEWED_ACK_REQ",
               "sessionId": this.activeSession,
               "accountId": this.myself.id,
               "msgId": obj.msgId
@@ -324,11 +326,11 @@ export default {
             this.websock.send(data);
           }
           break;
-        case "VIEWED_ACK":
+        case "VIEWED_ACK_RESP":
           // eslint-disable-next-line no-console
           console.log("VIEWED_ACK", obj.code);
           break;
-        case "PUSH_VIEWED_ACK":
+        case "PUSH_VIEWED_ACK_REQ":
           // eslint-disable-next-line no-console
           console.log("PUSH_VIEWED_ACK", obj.msgId);
           var messages = this.allMessages[obj.sessionId];
@@ -373,7 +375,7 @@ export default {
 
     websocketClose(e) {  //关闭
       // eslint-disable-next-line no-console
-      console.log('websocketClose', e.data);
+      console.log('websocketClose', e);
       if(this.retry < 5){
         this.retry++
         this.systemMsg = `Connection is disconnected. Try to reconnection in ${ this.retry } seconds.`
