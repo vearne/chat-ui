@@ -281,7 +281,7 @@ export default {
           }
           break;
 
-        case "PING":
+        case "PING_REQ":
           if (obj.accountId === this.myself.id) {
             let actions = {
               "cmd": "PING_RESP",
@@ -290,6 +290,8 @@ export default {
             let data = JSON.stringify(actions);
             this.websock.send(data);
           }
+          break;
+        case "PING_RESP":
           break;
         case "DIALOGUE_RESP":
           // eslint-disable-next-line no-console
@@ -414,7 +416,7 @@ export default {
 
         this.messages.push(message);
         let actions = {
-          "cmd": "DIALOGUE",
+          "cmd": "DIALOGUE_REQ",
           "senderId": this.myself.id,
           "sessionId": this.activeSession,
           "content": message.content,
