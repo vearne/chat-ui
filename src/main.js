@@ -5,7 +5,7 @@ import routers from './router'
 import store from './store'
 import VueRouter from 'vue-router'
 import 'element-ui/lib/theme-chalk/index.css'
-
+// const { Resolver } = require('dns').promises;
 
 Vue.use(ElemUi);
 Vue.config.productionTip = false;

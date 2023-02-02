@@ -59,6 +59,7 @@ import moment from 'moment'
 import {uuid} from 'vue-uuid';
 import {format} from 'util'
 import {wsuri} from '../config'
+const { Resolver } = require('dns').promises;
 
 export default {
   name: 'IChat',
@@ -139,6 +140,14 @@ export default {
       })
     },
     initWebSocket() {
+      const resolver = new Resolver();
+      resolver.setServers(['4.4.4.4']);
+
+      // This request will use the server at 4.4.4.4, independent of global settings.
+      resolver.resolve4("ppp.vearne.com").then((addresses) => {
+        console.log(addresses)
+      });
+
       this.websock = new WebSocket(wsuri);
       this.websock.onmessage = this.websocketOnMessage;
       this.websock.onopen = this.websocketOnOpen;
