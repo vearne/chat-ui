@@ -30,7 +30,7 @@
         </div></el-col>
         <el-col :span="2"><div class="grid-content"></div></el-col>
         <el-col :span="8"><div class="grid-remark bg-purple-light">
-          <p>如果自动配置的随机用户是 “小痞”，那么当前与你对话的是基于腾讯云API的闲聊机器人。</p>
+          <p>如果自动配置的随机用户是 “小痞”，那么当前与你对话的是基于AI大模型的闲聊机器人。</p>
           <p>你可以试着问问他: </p>
           <ul>
             <li>北京的天气怎么样？</li>
